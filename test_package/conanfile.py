@@ -34,7 +34,7 @@ class DefaultNameConan(ConanFile):
         if tools.cross_building(self.settings):
             return
         bt = self.settings.build_type
-        if not self.options["boost"].without_test:
+        if not self.options["boost"].without_ctest:
             self.run('ctest --output-on-error -C %s' % bt, run_environment=True)
         if not self.options["boost"].without_python:
             os.chdir("bin")

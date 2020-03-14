@@ -56,6 +56,7 @@ class BoostConan(ConanFile):
         "segmented_stacks": [True, False],
         "debug_level": [i for i in range(1, 14)],
         "pch": [True, False],
+        "without_ctest": [True, False],
         "extra_b2_flags": "ANY"  # custom b2 flags
     }
     options.update({"without_%s" % libname: [True, False] for libname in lib_list})
@@ -81,6 +82,7 @@ class BoostConan(ConanFile):
         'segmented_stacks': False,
         "debug_level": 2,
         'pch': True,
+        "without_ctest": True,
         'extra_b2_flags': 'None',
     }
 
