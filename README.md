@@ -29,6 +29,11 @@ sudo -E docker build \
 ## Local build
 
 ```bash
+# see https://github.com/boostorg/build/issues/418
+# use b2 provided by conan package
+(sudo apt remove libboost-*-dev || true)
+(sudo mv /usr/bin/b2 /usr/bin/b2_backup || true)
+
 export PKG_NAME=boost/1.71.0@dev/stable
 conan remove $PKG_NAME
 conan create . dev/stable -s build_type=Debug --profile clang --build missing -o boost:without_ctest=True -o openssl:shared=True

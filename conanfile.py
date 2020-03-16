@@ -133,7 +133,8 @@ class BoostConan(ConanFile):
                 # requires openssl
                 self.requires("zlib/v1.2.11@conan/stable")
             if self.options.bzip2:
-                self.requires("bzip2/1.0.8")
+                # patched version
+                self.requires("bzip2/1.0.8@dev/stable")
             if self.options.lzma:
                 self.requires("xz_utils/5.2.4")
             if self.options.zstd:
