@@ -1,13 +1,26 @@
+import glob
+import os
+import sys
+import shutil
+
 from conans import ConanFile
 from conans import tools
 from conans.client.build.cppstd_flags import cppstd_flag
 from conans.tools import Version
 from conans.errors import ConanException
-
+from conans.model.version import Version
 from conans.errors import ConanInvalidConfiguration
-import os
-import sys
-import shutil
+
+from conans import ConanFile, CMake, tools, AutoToolsBuildEnvironment, RunEnvironment, python_requires
+from conans.errors import ConanInvalidConfiguration, ConanException
+from conans.tools import os_info
+import os, re, stat, fnmatch, platform, glob, traceback, shutil
+from functools import total_ordering
+
+# if you using python less than 3 use from distutils import strtobool
+from distutils.util import strtobool
+
+conan_build_helper = python_requires("conan_build_helper/[~=0.0]@conan/stable")
 
 try:
     from cStringIO import StringIO
@@ -24,7 +37,7 @@ lib_list = ['math', 'wave', 'container', 'contract', 'exception', 'graph', 'iost
             'stacktrace', 'test', 'type_erasure']
 
 
-class BoostConan(ConanFile):
+class BoostConan(conan_build_helper.CMakePackage):
     name = "boost"
     settings = "os", "arch", "compiler", "build_type"
     description = "Boost provides free peer-reviewed portable C++ source libraries"
@@ -36,6 +49,10 @@ class BoostConan(ConanFile):
     # The current python option requires the package to be built locally, to find default Python
     # implementation
     options = {
+        "enable_ubsan": [True, False],
+        "enable_asan": [True, False],
+        "enable_msan": [True, False],
+        "enable_tsan": [True, False],
         "shared": [True, False],
         "header_only": [True, False],
         "error_code_header_only": [True, False],
@@ -62,6 +79,10 @@ class BoostConan(ConanFile):
     options.update({"without_%s" % libname: [True, False] for libname in lib_list})
 
     default_options = {
+        "enable_ubsan": False,
+        "enable_asan": False,
+        "enable_msan": False,
+        "enable_tsan": False,
         'shared': False,
         'header_only': False,
         'error_code_header_only': False,
@@ -75,8 +96,8 @@ class BoostConan(ConanFile):
         'python_version': 'None',
         'namespace': 'boost',
         'namespace_alias': False,
-        'zlib': True,
-        'bzip2': True,
+        'zlib': False,
+        'bzip2': False,
         'lzma': False,
         'zstd': False,
         'segmented_stacks': False,
@@ -93,6 +114,14 @@ class BoostConan(ConanFile):
     short_paths = True
     no_copy_source = True
     exports_sources = ['patches/*']
+
+    # sets cmake variables required to use clang 10 from conan
+    def _is_compile_with_llvm_tools_enabled(self):
+      return self._environ_option("COMPILE_WITH_LLVM_TOOLS", default = 'false')
+
+    # installs clang 10 from conan
+    def _is_llvm_tools_enabled(self):
+      return self._environ_option("ENABLE_LLVM_TOOLS", default = 'false')
 
     @property
     def _bcp_dir(self):
@@ -119,6 +148,22 @@ class BoostConan(ConanFile):
         exe = self.options.python_executable if self.options.python_executable else sys.executable
         return str(exe).replace('\\', '/')
 
+    def configure(self):
+        lower_build_type = str(self.settings.build_type).lower()
+
+        if lower_build_type != "release" and not self._is_llvm_tools_enabled():
+            self.output.warn('enable llvm_tools for Debug builds')
+
+        if self._is_compile_with_llvm_tools_enabled() and not self._is_llvm_tools_enabled():
+            raise ConanInvalidConfiguration("llvm_tools must be enabled")
+
+        if self.options.enable_ubsan \
+           or self.options.enable_asan \
+           or self.options.enable_msan \
+           or self.options.enable_tsan:
+            if not self._is_llvm_tools_enabled():
+                raise ConanInvalidConfiguration("sanitizers require llvm_tools")
+
     def config_options(self):
         if self.settings.os == "Windows":
             del self.options.fPIC
@@ -126,10 +171,15 @@ class BoostConan(ConanFile):
     def build_requirements(self):
         self.build_requires("b2/4.2.0")
 
+        # provides clang-tidy, clang-format, IWYU, scan-build, etc.
+        if self._is_llvm_tools_enabled():
+          self.build_requires("llvm_tools/master@conan/stable")
+
     def requirements(self):
         if self._zip_bzip2_requires_needed:
             if self.options.zlib:
                 # requires openssl
+                # TODO: use self.requires("chromium_zlib/master@conan/stable")
                 self.requires("zlib/v1.2.11@conan/stable")
             if self.options.bzip2:
                 # patched version
@@ -506,12 +556,172 @@ class BoostConan(ConanFile):
         else:
             return None
 
+    def collect_cxx_flags(self):
+        collect_cxx_flags = ' '
+
+        if self.options.enable_ubsan:
+            collect_cxx_flags += '-fPIC'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-optimize-sibling-calls'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-omit-frame-pointer'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-stack-protector'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-wrapv'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=undefined'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=float-divide-by-zero'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=unsigned-integer-overflow'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=implicit-conversion'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=nullability-arg'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=nullability-assign'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=nullability-return'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-sanitize=vptr'
+            collect_cxx_flags += ' '
+
+        if self.options.enable_asan:
+            collect_cxx_flags += '-fPIC'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-optimize-sibling-calls'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-omit-frame-pointer'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-stack-protector'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize-address-use-after-scope'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=address'
+            collect_cxx_flags += ' '
+
+        if self.options.enable_tsan:
+            collect_cxx_flags += '-fPIC'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-optimize-sibling-calls'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-omit-frame-pointer'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-stack-protector'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=thread'
+            collect_cxx_flags += ' '
+
+        if self.options.enable_msan:
+            collect_cxx_flags += '-fPIC'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fPIE'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-elide-constructors'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-optimize-sibling-calls'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-omit-frame-pointer'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fno-stack-protector'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize-memory-track-origins=2'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize-memory-use-after-dtor'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fsanitize=memory'
+            collect_cxx_flags += ' '
+
+        if self.options.enable_msan \
+           or self.options.enable_asan \
+           or self.options.enable_tsan \
+           or self.options.enable_ubsan \
+           or self._is_compile_with_llvm_tools_enabled():
+            llvm_tools_ROOT = self.deps_cpp_info["llvm_tools"].rootpath.replace('\\', '/')
+            self.output.info('llvm_tools_ROOT = %s' % (llvm_tools_ROOT))
+            collect_cxx_flags += '-Wno-error=unused-command-line-argument'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-Wno-unused-command-line-argument'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-fuse-ld=lld'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-D__CLANG__'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-nostdinc++'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += '-stdlib=libc++'
+            collect_cxx_flags += ' '
+            collect_cxx_flags += "-isystem {}/include/c++/v1".format(llvm_tools_ROOT)
+            collect_cxx_flags += ' '
+            collect_cxx_flags += "-isystem {}/include".format(llvm_tools_ROOT)
+            collect_cxx_flags += ' '
+            collect_cxx_flags += "-isystem {}/lib/clang/10.0.1/include".format(llvm_tools_ROOT)
+            collect_cxx_flags += ' '
+            collect_cxx_flags += "-lc++"
+            collect_cxx_flags += ' '
+            collect_cxx_flags += "-lc++abi"
+            collect_cxx_flags += ' '
+            collect_cxx_flags += "-lunwind"
+            collect_cxx_flags += ' '
+            collect_cxx_flags += "-Wl,-rpath,{}/lib".format(llvm_tools_ROOT)
+            collect_cxx_flags += ' '
+            collect_cxx_flags += "-L{}/lib".format(llvm_tools_ROOT)
+            collect_cxx_flags += ' '
+
+        return collect_cxx_flags
+
+    def collect_linkflags(self):
+        collect_linkflags = ' '
+
+        if self.options.enable_ubsan:
+            collect_linkflags += '-static-libubsan'
+            collect_linkflags += ' '
+
+        if self.options.enable_asan:
+            collect_linkflags += '-static-libasan'
+            collect_linkflags += ' '
+
+        if self.options.enable_tsan:
+            collect_linkflags += '-static-libtsan'
+            collect_linkflags += ' '
+
+        if self.options.enable_msan:
+            collect_linkflags += '-static-libmsan'
+            collect_linkflags += ' '
+
+        if self.options.enable_msan \
+           or self.options.enable_asan \
+           or self.options.enable_tsan \
+           or self.options.enable_ubsan \
+           or self._is_compile_with_llvm_tools_enabled():
+            llvm_tools_ROOT = self.deps_cpp_info["llvm_tools"].rootpath.replace('\\', '/')
+            self.output.info('llvm_tools_ROOT = %s' % (llvm_tools_ROOT))
+            collect_linkflags += '-stdlib=libc++'
+            collect_linkflags += ' '
+            collect_linkflags += '-lc++'
+            collect_linkflags += ' '
+            collect_linkflags += '-lc++abi'
+            collect_linkflags += ' '
+            collect_linkflags += '-lunwind'
+            collect_linkflags += ' '
+            collect_linkflags += "-Wl,-rpath,{}/lib".format(llvm_tools_ROOT)
+            collect_linkflags += ' '
+            collect_linkflags += "-L{}/lib".format(llvm_tools_ROOT)
+            collect_linkflags += ' '
+
+        return collect_linkflags
+
     @property
     def _gnu_cxx11_abi(self):
         """Checks libcxx setting and returns value for the GNU C++11 ABI flag
         _GLIBCXX_USE_CXX11_ABI= .  Returns None if C++ library cannot be
         determined.
         """
+
+        if self._is_compile_with_llvm_tools_enabled():
+          return "0"
+
         try:
             if str(self.settings.compiler.libcxx) == "libstdc++":
                 return "0"
@@ -587,8 +797,14 @@ class BoostConan(ConanFile):
             if self.options.fPIC:
                 cxx_flags.append("-fPIC")
 
+        collected_linkflags = self.collect_linkflags()
+        self.output.info('collected_linkflags = %s' % (collected_linkflags))
+
+        collected_cxx_flags = self.collect_cxx_flags()
+        self.output.info('collected_cxx_flags = %s' % (collected_cxx_flags))
+
         # Standalone toolchain fails when declare the std lib
-        if self.settings.os != "Android":
+        if collected_cxx_flags == "" and self.settings.os != "Android":
             try:
                 if self._gnu_cxx11_abi:
                     flags.append("define=_GLIBCXX_USE_CXX11_ABI=%s" % self._gnu_cxx11_abi)
@@ -601,6 +817,10 @@ class BoostConan(ConanFile):
                         cxx_flags.append("-stdlib=libstdc++")
             except:
                 pass
+
+        flags.append('linkflags="{}"'.format(collected_linkflags))
+
+        cxx_flags.append(collected_cxx_flags)
 
         if self.options.error_code_header_only:
             flags.append("define=BOOST_ERROR_CODE_HEADER_ONLY=1")
@@ -744,17 +964,26 @@ class BoostConan(ConanFile):
             if self.settings.get_safe("arch"):
                 contents += " -arch %s" % tools.to_apple_arch(self.settings.arch)
 
+        collected_linkflags = self.collect_linkflags()
+        self.output.info('(2) collected_linkflags = %s' % (collected_linkflags))
+
+        collected_cxx_flags = self.collect_cxx_flags()
+        self.output.info('(2) collected_cxx_flags = %s' % (collected_cxx_flags))
+
         contents += " : \n"
+
         if self._ar:
             contents += '<archiver>"%s" ' % tools.which(self._ar).replace("\\", "/")
+
         if self._ranlib:
             contents += '<ranlib>"%s" ' % tools.which(self._ranlib).replace("\\", "/")
-        if "CXXFLAGS" in os.environ:
-            contents += '<cxxflags>"%s" ' % os.environ["CXXFLAGS"]
-        if "CFLAGS" in os.environ:
-            contents += '<cflags>"%s" ' % os.environ["CFLAGS"]
-        if "LDFLAGS" in os.environ:
-            contents += '<linkflags>"%s" ' % os.environ["LDFLAGS"]
+
+        contents += '<cxxflags>"%s%s" ' % (os.environ["CXXFLAGS"] if "CXXFLAGS" in os.environ else "", collected_cxx_flags)
+
+        contents += '<cflags>"%s%s" ' % (os.environ["CFLAGS"] if "CFLAGS" in os.environ else "", collected_cxx_flags)
+
+        contents += '<linkflags>"%s%s" ' % (os.environ["LDFLAGS"] if "LDFLAGS" in os.environ else "", collected_linkflags)
+
         if "ASFLAGS" in os.environ:
             contents += '<asmflags>"%s" ' % os.environ["ASFLAGS"]
 
