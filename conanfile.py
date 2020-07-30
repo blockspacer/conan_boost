@@ -59,6 +59,8 @@ class BoostConan(conan_build_helper.CMakePackage):
         "system_no_deprecated": [True, False],
         "asio_no_deprecated": [True, False],
         "filesystem_no_deprecated": [True, False],
+        "no_rtti": [True, False],
+        "no_exceptions": [True, False],
         "fPIC": [True, False],
         "layout": ["system", "versioned", "tagged"],
         "magic_autolink": [True, False],  # enables BOOST_ALL_NO_LIB
@@ -89,6 +91,8 @@ class BoostConan(conan_build_helper.CMakePackage):
         'system_no_deprecated': False,
         'asio_no_deprecated': False,
         'filesystem_no_deprecated': False,
+        "no_rtti": False,
+        "no_exceptions": True,
         'fPIC': True,
         'layout': 'system',
         'magic_autolink': False,
@@ -108,9 +112,90 @@ class BoostConan(conan_build_helper.CMakePackage):
     }
 
     for libname in lib_list:
-        if libname != "python":
+        if libname != "python" \
+           and libname != "coroutine" \
+           and libname != "math" \
+           and libname != "wave" \
+           and libname != "contract" \
+           and libname != "locale" \
+           and libname != "random" \
+           and libname != "regex" \
+           and libname != "mpi" \
+           and libname != "timer" \
+           and libname != "thread" \
+           and libname != "chrono" \
+           and libname != "atomic" \
+           and libname != "system" \
+           and libname != "stacktrace" \
+           and libname != "program_options" \
+           and libname != "serialization" \
+           and libname != "log" \
+           and libname != "type_erasure" \
+           and libname != "test" \
+           and libname != "graph" \
+           and libname != "graph_parallel" \
+           and libname != "iostreams" \
+           and libname != "context" \
+           and libname != "fiber" \
+           and libname != "filesystem" \
+           and libname != "date_time" \
+           and libname != "exception" \
+           and libname != "container":
             default_options.update({"without_%s" % libname: False})
+            print('without_{} is False'.format(libname))
+
     default_options.update({"without_python": True})
+    default_options.update({"without_coroutine": True})
+    default_options.update({"without_stacktrace": True})
+    default_options.update({"without_math": True})
+    default_options.update({"without_wave": True})
+    default_options.update({"without_contract": True})
+    default_options.update({"without_locale": True})
+    default_options.update({"without_random": True})
+    default_options.update({"without_regex": True})
+    default_options.update({"without_mpi": True})
+    default_options.update({"without_timer": True})
+    default_options.update({"without_thread": True})
+    default_options.update({"without_chrono": True})
+    default_options.update({"without_atomic": True})
+    default_options.update({"without_system": True})
+
+    # requires exceptions
+    default_options.update({"without_program_options": True})
+    # requires exceptions
+    default_options.update({"without_serialization": True})
+    # requires exceptions
+    default_options.update({"without_log": True})
+    # requires exceptions
+    default_options.update({"without_type_erasure": True})
+    # requires exceptions
+    default_options.update({"without_test": True})
+    # requires rtti
+    default_options.update({"without_graph": True})
+    default_options.update({"without_graph_parallel": True})
+    # requires exceptions
+    default_options.update({"without_iostreams": True})
+    # requires exceptions
+    default_options.update({"without_context": True})
+    # requires exceptions
+    default_options.update({"without_fiber": True})
+    # requires exceptions
+    default_options.update({"without_filesystem": True})
+    # requires exceptions
+    default_options.update({"without_date_time": True})
+    # requires exceptions
+    default_options.update({"without_exception": True})
+    # requires rtti
+    default_options.update({"without_container": True})
+
+    # TODO
+    # requires rtti
+    #default_options.update({"without_xpressive": True})
+    # requires rtti
+    #default_options.update({"without_property_map": True})
+    # requires rtti
+    #default_options.update({"without_property_tree": True})
+
     short_paths = True
     no_copy_source = True
     exports_sources = ['patches/*']
@@ -830,6 +915,15 @@ class BoostConan(conan_build_helper.CMakePackage):
             flags.append("define=BOOST_ASIO_NO_DEPRECATED=1")
         if self.options.filesystem_no_deprecated:
             flags.append("define=BOOST_FILESYSTEM_NO_DEPRECATED=1")
+
+        if self.options.no_rtti:
+            flags.append("define=BOOST_NO_RTTI=1")
+            flags.append("define=BOOST_NO_TYPEID=1")
+
+        if self.options.no_exceptions:
+            flags.append("define=BOOST_EXCEPTION_DISABLE=1")
+            flags.append("define=BOOST_NO_EXCEPTIONS=1")
+
         if self.options.segmented_stacks:
             flags.extend(["segmented-stacks=on",
                           "define=BOOST_USE_SEGMENTED_STACKS=1",
@@ -1080,6 +1174,14 @@ class BoostConan(conan_build_helper.CMakePackage):
 
         if self.options.asio_no_deprecated:
             self.cpp_info.defines.append("BOOST_ASIO_NO_DEPRECATED")
+
+        if self.options.no_rtti:
+            self.cpp_info.defines.append("BOOST_NO_RTTI")
+            self.cpp_info.defines.append("BOOST_NO_TYPEID")
+
+        if self.options.no_exceptions:
+            self.cpp_info.defines.append("BOOST_EXCEPTION_DISABLE")
+            self.cpp_info.defines.append("BOOST_NO_EXCEPTIONS")
 
         if self.options.filesystem_no_deprecated:
             self.cpp_info.defines.append("BOOST_FILESYSTEM_NO_DEPRECATED")
