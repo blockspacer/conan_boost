@@ -759,21 +759,22 @@ class BoostConan(conan_build_helper.CMakePackage):
     def collect_linkflags(self):
         collect_linkflags = ' '
 
-        if self.options.enable_ubsan:
-            collect_linkflags += '-static-libubsan'
-            collect_linkflags += ' '
-
-        if self.options.enable_asan:
-            collect_linkflags += '-static-libasan'
-            collect_linkflags += ' '
-
-        if self.options.enable_tsan:
-            collect_linkflags += '-static-libtsan'
-            collect_linkflags += ' '
-
-        if self.options.enable_msan:
-            collect_linkflags += '-static-libmsan'
-            collect_linkflags += ' '
+        # TODO: unknown argument '-static-libtsan'
+        #if self.options.enable_ubsan:
+        #    collect_linkflags += '-static-libubsan'
+        #    collect_linkflags += ' '
+        #
+        #if self.options.enable_asan:
+        #    collect_linkflags += '-static-libasan'
+        #    collect_linkflags += ' '
+        #
+        #if self.options.enable_tsan:
+        #    collect_linkflags += '-static-libtsan'
+        #    collect_linkflags += ' '
+        #
+        #if self.options.enable_msan:
+        #    collect_linkflags += '-static-libmsan'
+        #    collect_linkflags += ' '
 
         if self.options.enable_msan \
            or self.options.enable_asan \
