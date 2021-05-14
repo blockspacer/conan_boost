@@ -35,7 +35,8 @@ sudo -E docker build \
 (sudo mv /usr/bin/b2 /usr/bin/b2_backup || true)
 
 export PKG_NAME=boost/1.71.0@dev/stable
-conan remove -f $PKG_NAME
+(CONAN_REVISIONS_ENABLED=1 \
+    conan remove --force $PKG_NAME || true)
 conan create . dev/stable -s build_type=Debug --profile clang --build missing -o boost:without_ctest=True -o openssl:shared=True
 CONAN_REVISIONS_ENABLED=1 CONAN_VERBOSE_TRACEBACK=1 CONAN_PRINT_RUN_COMMANDS=1 CONAN_LOGGING_LEVEL=10 conan upload $PKG_NAME --all -r=conan-local -c --retry 3 --retry-wait 10 --force
 
