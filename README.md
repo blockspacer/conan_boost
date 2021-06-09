@@ -34,11 +34,18 @@ sudo -E docker build \
 (sudo apt remove libboost-*-dev || true)
 (sudo mv /usr/bin/b2 /usr/bin/b2_backup || true)
 
+export VERBOSE=1
+export CONAN_REVISIONS_ENABLED=1
+export CONAN_VERBOSE_TRACEBACK=1
+export CONAN_PRINT_RUN_COMMANDS=1
+export CONAN_LOGGING_LEVEL=10
+export GIT_SSL_NO_VERIFY=true
+
 export PKG_NAME=boost/1.71.0@dev/stable
 (CONAN_REVISIONS_ENABLED=1 \
     conan remove --force $PKG_NAME || true)
 conan create . dev/stable -s build_type=Debug --profile clang --build missing -o boost:without_ctest=True -o openssl:shared=True
-CONAN_REVISIONS_ENABLED=1 CONAN_VERBOSE_TRACEBACK=1 CONAN_PRINT_RUN_COMMANDS=1 CONAN_LOGGING_LEVEL=10 conan upload $PKG_NAME --all -r=conan-local -c --retry 3 --retry-wait 10 --force
+conan upload $PKG_NAME --all -r=conan-local -c --retry 3 --retry-wait 10 --force
 
 # clean build cache
 conan remove "*" --build --force
@@ -63,30 +70,32 @@ export LDFLAGS="-stdlib=libc++ -lc++ -lc++abi -lunwind"
 # must exist
 file $(dirname $CXX)/../lib/clang/10.0.1/lib/linux/libclang_rt.tsan_cxx-x86_64.a
 
+export VERBOSE=1
+export CONAN_REVISIONS_ENABLED=1
+export CONAN_VERBOSE_TRACEBACK=1
+export CONAN_PRINT_RUN_COMMANDS=1
+export CONAN_LOGGING_LEVEL=10
+export GIT_SSL_NO_VERIFY=true
+
 # NOTE: NO `--profile` argument cause we use `CXX` env. var
 # NOTE: change `build_type=Debug` to `build_type=Release` in production
-CONAN_REVISIONS_ENABLED=1 \
-    CONAN_VERBOSE_TRACEBACK=1 \
-    CONAN_PRINT_RUN_COMMANDS=1 \
-    CONAN_LOGGING_LEVEL=10 \
-    GIT_SSL_NO_VERIFY=true \
-    conan create . \
-        dev/stable \
-        -s build_type=Debug \
-        -s llvm_tools:build_type=Release \
-        -o llvm_tools:enable_tsan=True \
-        -o llvm_tools:include_what_you_use=False \
-        -s llvm_tools:compiler=clang \
-        -s llvm_tools:compiler.version=10 \
-        -s llvm_tools:compiler.libcxx=libstdc++11 \
-        -o boost:without_ctest=True \
-        -o boost:enable_tsan=True \
-        -e boost:enable_llvm_tools=True \
-        -e boost:compile_with_llvm_tools=True \
-        -s compiler=clang \
-        -s compiler.version=10 \
-        -s compiler.libcxx=libc++ \
-        -o openssl:shared=True
+conan create . \
+    dev/stable \
+    -s build_type=Debug \
+    -s llvm_tools:build_type=Release \
+    -o llvm_tools:enable_tsan=True \
+    -o llvm_tools:include_what_you_use=False \
+    -s llvm_tools:compiler=clang \
+    -s llvm_tools:compiler.version=10 \
+    -s llvm_tools:compiler.libcxx=libstdc++11 \
+    -o boost:without_ctest=True \
+    -o boost:enable_tsan=True \
+    -e boost:enable_llvm_tools=True \
+    -e boost:compile_with_llvm_tools=True \
+    -s compiler=clang \
+    -s compiler.version=10 \
+    -s compiler.libcxx=libc++ \
+    -o openssl:shared=True
 
 # reset changed LDFLAGS
 unset LDFLAGS
@@ -106,6 +115,13 @@ conan remove "*" --build --force
 ## How to diagnose errors in conanfile (CONAN_PRINT_RUN_COMMANDS)
 
 ```bash
+export VERBOSE=1
+export CONAN_REVISIONS_ENABLED=1
+export CONAN_VERBOSE_TRACEBACK=1
+export CONAN_PRINT_RUN_COMMANDS=1
+export CONAN_LOGGING_LEVEL=10
+export GIT_SSL_NO_VERIFY=true
+
 # NOTE: about `--keep-source` see https://bincrafters.github.io/2018/02/27/Updated-Conan-Package-Flow-1.1/
-CONAN_REVISIONS_ENABLED=1 CONAN_VERBOSE_TRACEBACK=1 CONAN_PRINT_RUN_COMMANDS=1 CONAN_LOGGING_LEVEL=10 conan create . conan/stable -s build_type=Debug --profile clang --build missing --keep-source
+conan create . conan/stable -s build_type=Debug --profile clang --build missing --keep-source
 ```

@@ -36,6 +36,15 @@ lib_list = ['math', 'wave', 'container', 'contract', 'exception', 'graph', 'iost
             'atomic', 'filesystem', 'system', 'graph_parallel', 'python',
             'stacktrace', 'test', 'type_erasure']
 
+# Users locally they get the 1.0.0 version,
+# without defining any env-var at all,
+# and CI servers will append the build number.
+# USAGE
+# version = get_version("1.0.0")
+# BUILD_NUMBER=-pre1+build2 conan export-pkg . my_channel/release
+def get_version(version):
+    bn = os.getenv("BUILD_NUMBER")
+    return (version + bn) if bn else version
 
 class BoostConan(conan_build_helper.CMakePackage):
     name = "boost"
@@ -45,7 +54,7 @@ class BoostConan(conan_build_helper.CMakePackage):
     homepage = "https://www.boost.org"
     license = "BSL-1.0"
     topics = ("conan", "boost", "libraries", "cpp")
-    version = "1.71.0"
+    version = get_version("1.71.0")
     # The current python option requires the package to be built locally, to find default Python
     # implementation
     options = {
