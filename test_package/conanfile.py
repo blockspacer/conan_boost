@@ -22,9 +22,17 @@ class TestPackageConan(ConanFile):
         except (AttributeError, ConanException):
             return default
 
+    @property
+    def _is_msvc(self):
+        return str(self.settings.compiler) in ["Visual Studio", "msvc"]
+
+    @property
+    def _is_clang_cl(self):
+        return self.settings.os == "Windows" and self.settings.compiler == "clang"
+
     def build(self):
         # FIXME: tools.vcvars added for clang-cl. Remove once conan supports clang-cl properly. (https://github.com/conan-io/conan-center-index/pull/1453)
-        with tools.vcvars(self.settings) if (self.settings.os == "Windows" and self.settings.compiler == "clang") else tools.no_op():
+        with tools.vcvars(self.settings, only_diff=False) if self._is_msvc or self._is_clang_cl else tools.no_op(): # https://github.com/conan-io/conan/issues/6577
             cmake = CMake(self)
             cmake.definitions["HEADER_ONLY"] = self.options["boost"].header_only
             if not self.options["boost"].header_only:
