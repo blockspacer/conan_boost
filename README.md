@@ -4,7 +4,7 @@ Modified `boost` recipe
 
 ## EXTRA FEATURES
 
-- supports "zlib/v1.2.11@conan/stable" with "openssl/OpenSSL_1_1_1-stable@conan/stable"
+- supports "zlib/v1.2.11@conan/stable" with "openssl/1.1.1-stable@conan/stable"
 - able to disable ctest
 
 # About
